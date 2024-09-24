@@ -4,8 +4,9 @@
 #include <WiFiClient.h>
 #include <SSD1306.h>
 #include <qrcode.h>
+#include <SoftwareSerial.h>
 
-const char* ssid = "LeeF";
+const char* ssid = "dev";
 const char* password = "dnflwlq4";
 
 String uploadPath = "http://server.legatalee.me:8000/upload?";
@@ -13,6 +14,9 @@ String viewPath = "http://receipt.legatalee.me:8000/view?";
 
 SSD1306 display(0x3c, D2, D1);
 QRcode qrcode(&display);
+
+SoftwareSerial RSinput(D7, D8);
+SoftwareSerial RSoutput(D5, D6);
 
 const char base64Chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
@@ -56,6 +60,8 @@ void setup() {
   pinMode(D3, INPUT_PULLUP);
 
   Serial.begin(9600);
+  RSinput.begin(9600);
+  RSoutput.begin(9600);
 
   display.init();
   display.clear();
@@ -92,11 +98,19 @@ void setup() {
   displayLogo();
 }
 
+String input = "";
+unsigned long previousMillis = 0;
+
 void loop() {
-  String input = "";
   while (Serial.available()) {
-    input += (char)Serial.read();
-    delay(2);
+    // input += (char)Serial.read();
+    // delay(3);
+    input = Serial.readString();
+  }
+  while (RSinput.available()) {
+    // input += (char)RSinput.read();
+    // delay(3);
+    input = RSinput.readString();
   }
   if (input != "") {
     input.toCharArray(data, 3000);
@@ -146,12 +160,24 @@ void loop() {
       Serial.println("WiFi Disconnected");
     }
     delay(300);
+    previousMillis = millis();
   }
   while (input != "") {
     yield();
     if (digitalRead(D3) == 0) {
+      RSoutput.print(input);
       displayLogo();
       input = "";
+    }
+    if ((Serial.available()) || (RSinput.available())) {
+      displayLogo();
+      input = "";
+    }
+    unsigned long currentMillis = millis();
+    if (currentMillis - previousMillis >= 20000) {
+      displayLogo();
+      input = "";
+      previousMillis = millis();
     }
   }
 }
