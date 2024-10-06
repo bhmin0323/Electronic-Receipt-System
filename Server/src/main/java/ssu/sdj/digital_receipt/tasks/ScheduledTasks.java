@@ -13,7 +13,7 @@ public class ScheduledTasks {
     @Autowired
     private DataRepository dataRepository;
 
-    @Scheduled(fixedRate = 60000) // 1분마다 실행
+    @Scheduled(fixedRate = 20000) // 20초마다 실행
     @Transactional
     public void deleteExpiredData() {
         dataRepository.deleteByExpiryDateBefore(LocalDateTime.now());

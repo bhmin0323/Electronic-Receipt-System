@@ -17,11 +17,12 @@ public class Data {
     private Long id;
 
     @Lob
-    @Column(nullable = false, length = 256)
-    private String decoded_data;
+    private String encrypted_data;
 
     @Column(nullable = false)
-    private String data_key;
+    private String check_val;
+
+    private String IV;
 
     private LocalDateTime expiryDate;
 }
