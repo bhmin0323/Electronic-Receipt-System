@@ -14,6 +14,11 @@ public class SerialCommunication {
 
     public boolean connect() {
         try {
+            if (isConnected()) {
+                System.err.println("Already connected. Disconnect first before reconnecting.");
+                return false;
+            }
+
             String portName = settingsManager.getPort();
             int baudRate = settingsManager.getRate();
 
@@ -51,6 +56,7 @@ public class SerialCommunication {
     public void disconnect() {
         if (serialPort != null && serialPort.isOpen()) {
             serialPort.closePort();
+            serialPort = null; // 연결 후 포트 리소스 정리
             System.out.println("Disconnected from serial port");
         }
     }
@@ -60,7 +66,22 @@ public class SerialCommunication {
             try {
                 serialPort.getOutputStream().write(data);
                 serialPort.getOutputStream().flush();
-                System.out.println("Data sent: " + bytesToHex(data));
+            } catch (Exception e) {
+                System.err.println("Error sending data: " + e.getMessage());
+            }
+        } else {
+            System.err.println("Serial port is not open. Cannot send data.");
+        }
+    }
+    public void sendData(String data) {
+        if (serialPort != null && serialPort.isOpen()) {
+            try {
+                // 문자열을 바이트 배열로 변환 (UTF-8 인코딩 사용)
+                byte[] byteData = data.getBytes("UTF-8");
+
+                // 시리얼 포트로 데이터 전송
+                serialPort.getOutputStream().write(byteData);
+                serialPort.getOutputStream().flush();
             } catch (Exception e) {
                 System.err.println("Error sending data: " + e.getMessage());
             }
@@ -73,12 +94,8 @@ public class SerialCommunication {
         if (serialPort != null && serialPort.isOpen()) {
             try {
                 byte[] buffer = new byte[1024];
-                int bytesRead = serialPort.getInputStream().read(buffer);
-                if (bytesRead > 0) {
-                    byte[] receivedData = Arrays.copyOf(buffer, bytesRead);
-                    System.out.println("Data received: " + bytesToHex(receivedData));
-                    return receivedData;
-                }
+                int numRead = serialPort.getInputStream().read(buffer);
+                return Arrays.copyOf(buffer, numRead);
             } catch (Exception e) {
                 System.err.println("Error receiving data: " + e.getMessage());
             }
@@ -88,11 +105,14 @@ public class SerialCommunication {
         return new byte[0];
     }
 
-    private static String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) {
-            sb.append(String.format("%02X ", b));
+
+    public void clearBuffer() {
+        if (serialPort != null && serialPort.isOpen()) {
+            serialPort.flushIOBuffers();
+            System.out.println("Buffers cleared.");
+        } else {
+            System.err.println("Serial port is not open. Cannot clear buffers.");
         }
-        return sb.toString();
     }
+
 }
