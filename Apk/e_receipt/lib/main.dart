@@ -1,5 +1,6 @@
 import 'package:e_receipt/route_navigator.dart';
 import 'package:e_receipt/screen/QRcamera.dart';
+import 'package:e_receipt/screen/RClist.dart';
 import 'package:flutter/material.dart';
 
 void main() {
@@ -34,7 +35,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: QRpage(),
+      home: MainPage(),
     );
   }
 }
@@ -126,3 +127,64 @@ class MyApp extends StatelessWidget {
 //     );
 //   }
 // }
+
+
+
+
+/*
+import 'package:e_receipt/screen/QRInfo.dart';
+import 'package:flutter/material.dart';
+import 'package:e_receipt/model/Receipt_model.dart';
+
+void main() {
+  runApp(MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: '영수증 상세 테스트',
+      theme: ThemeData(
+        primarySwatch: Colors.green,
+      ),
+      home: TestPage(),
+    );
+  }
+}
+
+class TestPage extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    // 더미 영수증 데이터 생성
+    final dummyReceipt = ReceiptData(
+      storeName: '롯데마트',
+      date: '2024-10-11',
+      items: [
+        ReceiptItem(name: '사과', price: 3000),
+        ReceiptItem(name: '우유', price: 2500),
+        ReceiptItem(name: '빵', price: 1500),
+      ],
+      totalPrice: 7000,
+    );
+
+    return Scaffold(
+      appBar: AppBar(title: Text('테스트 페이지')),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () {
+            // 상세 페이지로 이동
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => ReceiptDetailPage(dummyReceipt)),
+            );
+          },
+          child: Text('영수증 상세 페이지 열기'),
+        ),
+      ),
+    );
+  }
+}
+
+*/
