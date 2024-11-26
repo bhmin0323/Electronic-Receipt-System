@@ -14,108 +14,246 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   List<ReceiptDataModel> receiptList = [];
   List<ReceiptStringModel> receiptStringList = [];
+  List<ReceiptDataModel> filteredList = [];
+  final ScrollController _scrollController = ScrollController();
+  bool isFiltering = false;
+  TextEditingController searchController = TextEditingController();
+  bool isSearchVisible = false;
+
+  DateTime? startDate;
+  DateTime? endDate;
 
   @override
   void initState() {
     super.initState();
-    _loadSampleData(); // 샘플 영수증 데이터 추가
-    _saveSampleData();
     _loadSavedData();
   }
 
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    searchController.dispose();
+    super.dispose();
+  }
+
   void _loadSavedData() async {
+    final dataManager = DataManage();
     List<ReceiptDataModel> loadedReceipts =
-        await DataManage().loadReceiptDataList();
+        await dataManager.loadReceiptDataList();
     List<ReceiptStringModel> loadedReceiptTexts =
-        await DataManage().loadReceiptTextList();
+        await dataManager.loadReceiptTextList();
 
     setState(() {
       receiptList = loadedReceipts;
       receiptStringList = loadedReceiptTexts;
+      filteredList = loadedReceipts; // 기본적으로 전체 리스트 표시
     });
   }
 
-  void _saveSampleData() {
-    setState(() {
-      DataManage().saveReceiptDataList(receiptList);
-      DataManage().saveReceiptTextList(receiptStringList);
-    });
-  }
-
-  void _loadSampleData() {
-    setState(() {
-      receiptList = [
-        ReceiptDataModel(
-          storeName: '서브웨이',
-          date: '2024-10-19',
-          totalPrice: 3500,
-        ),
-        ReceiptDataModel(
-          storeName: '이마트',
-          date: '2024-10-20',
-          totalPrice: 4300,
-        ),
-      ];
-      receiptStringList = [
-        ReceiptStringModel(text: '''상호: 상도동주민들
-사업자번호: 123-45-67890 
-TEL: 02-820-0114
-대표자: 이지민
-주소: 서울특별시 동작구 상도로 369
-------------------------------------------
-상품명           단가      수량      금액 
-------------------------------------------
-과세물품:                       150,000원
-부 가 세:                        15,000원
-총 합 계:                       165,000원
-------------------------------------------
-거래일시: 2024-10-07 13:53:05
-------------------------------------------
-                              전자서명전표
-
-찾아주셔서 감사합니다. (고객용)
-\n\n\n\n\n\n
-'''),
-        ReceiptStringModel(text: '''상호: 상도동주민들
-사업자번호: 123-45-67890 
-TEL: 02-820-0114
-대표자: 이지민
-주소: 서울특별시 동작구 상도로 369
-------------------------------------------
-상품명           단가      수량      금액 
-------------------------------------------
-과세물품:                        50,000원
-부 가 세:                        15,000원
-총 합 계:                        65,000원
-------------------------------------------
-거래일시: 2024-10-07 13:53:05
-------------------------------------------
-                              전자서명전표
-
-찾아주셔서 감사합니다. (고객용)
-\n\n\n\n\n\n
-'''),
-      ];
-    });
-  }
-
-  void deleteReceipt(int index) {
+  void deleteReceipt(int index) async {
     setState(() {
       receiptList.removeAt(index);
       receiptStringList.removeAt(index);
+      filteredList = receiptList;
     });
-    log('${receiptList}');
+
+    final dataManager = DataManage();
+    await dataManager.saveReceiptDataList(receiptList);
+    await dataManager.saveReceiptTextList(receiptStringList);
+  }
+
+  void _scrollToTop() {
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOut,
+      );
+    } else {
+      log("ScrollController가 연결되어 있지 않습니다.");
+    }
+  }
+
+  void _searchReceipts(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        isFiltering = false;
+        filteredList = receiptList;
+      } else {
+        isFiltering = true;
+        filteredList = receiptList
+            .where((receipt) =>
+                receipt.storeName.toLowerCase().contains(query.toLowerCase()))
+            .toList();
+      }
+    });
+  }
+
+  void _filterByDateRange() {
+    if (startDate != null && endDate != null) {
+      setState(() {
+        filteredList = receiptList.where((receipt) {
+          DateTime receiptDate = DateTime.parse(receipt.date);
+
+          DateTime startDateTime =
+              DateTime(startDate!.year, startDate!.month, startDate!.day);
+          DateTime endDateTime =
+              DateTime(endDate!.year, endDate!.month, endDate!.day)
+                  .add(Duration(days: 1));
+
+          return receiptDate.isAtSameMomentAs(startDateTime) ||
+              receiptDate.isAtSameMomentAs(endDateTime) ||
+              (receiptDate.isAfter(startDateTime) &&
+                  receiptDate.isBefore(endDateTime));
+        }).toList();
+      });
+    }
+  }
+
+  Future<void> _selectStartDate(BuildContext context) async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: startDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+
+    if (pickedDate != null && pickedDate != startDate) {
+      setState(() {
+        startDate = pickedDate;
+      });
+    }
+  }
+
+  Future<void> _selectEndDate(BuildContext context) async {
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: endDate ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now(),
+    );
+
+    if (pickedDate != null && pickedDate != endDate) {
+      setState(() {
+        endDate = pickedDate;
+      });
+    }
+  }
+
+  Future<void> _openDateRangeDialog(BuildContext context) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('날짜 범위 선택'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    '시작일',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _selectStartDate(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          startDate == null
+                              ? 'YYYY-MM-DD'
+                              : '${startDate!.year}-${startDate!.month.toString().padLeft(2, '0')}-${startDate!.day.toString().padLeft(2, '0')}',
+                          style: TextStyle(
+                            color:
+                                startDate == null ? Colors.grey : Colors.black,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 15),
+              Row(
+                children: [
+                  const Text(
+                    '종료일',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _selectEndDate(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          endDate == null
+                              ? 'YYYY-MM-DD'
+                              : '${endDate!.year}-${endDate!.month.toString().padLeft(2, '0')}-${endDate!.day.toString().padLeft(2, '0')}',
+                          style: TextStyle(
+                            color: endDate == null ? Colors.grey : Colors.black,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  if (startDate != null && endDate != null) {
+                    _filterByDateRange();
+                    Navigator.of(context).pop();
+                  } else {
+                    // Optional: Show a message if dates are not selected
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('시작일과 종료일을 모두 선택해주세요.')),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green[700],
+                ),
+                child: const Text(
+                  '검색',
+                  style: TextStyle(
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       appBar: AppBar(
         title: Container(
-          padding: const EdgeInsets.only(
-            left: 12,
-            right: 0,
-          ),
+          padding: const EdgeInsets.only(left: 12, right: 0),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -127,109 +265,158 @@ TEL: 02-820-0114
           ),
         ),
         centerTitle: true,
-        backgroundColor: Color.fromRGBO(0, 132, 96, 1),
+        backgroundColor: const Color.fromRGBO(0, 132, 96, 1),
         elevation: 5,
         shadowColor: Colors.grey[300],
       ),
-      body: ListView.builder(
-        itemCount: receiptList.length,
-        itemBuilder: (context, index) {
-          final receipt = receiptList[index];
-          log((receiptStringList[index].getter()));
-          return ReceiptWidget(
-            index: index,
-            receipt: receipt,
-            onDeleted: () => deleteReceipt(index),
-            receiptString: receiptStringList[index].getter(),
-          );
+      body: GestureDetector(
+        onTap: () {
+          FocusScope.of(context).unfocus(); // 화면 클릭 시 검색창 닫기
         },
-      ),
-      bottomNavigationBar: BottomAppBar(
-        shape: const CircularNotchedRectangle(),
-        notchMargin: 150.0,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 50.0, vertical: 0.01),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.list_alt_rounded,
-                      color: Color.fromRGBO(0, 132, 96, 1),
-                      size: 35,
+        child: Column(
+          children: [
+            if (isSearchVisible)
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    // 검색창
+                    Expanded(
+                      child: TextField(
+                        controller: searchController,
+                        decoration: InputDecoration(
+                          hintText: "상호명을 입력하세요...",
+                          prefixIcon: Icon(Icons.search, color: Colors.grey),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                        ),
+                        onChanged: _searchReceipts,
+                        onSubmitted: (_) {
+                          FocusScope.of(context).unfocus();
+                        },
+                      ),
                     ),
-                    onPressed: () {
-                      if (receiptList.isNotEmpty) {
-                        Scrollable.ensureVisible(
-                          context,
-                          duration: const Duration(milliseconds: 500),
-                        );
-                      }
-                    },
-                  ),
-                  // const Text(
-                  //   '목록',
-                  //   style: TextStyle(color: Color.fromRGBO(0, 132, 96, 1)),
-                  // ),
-                ],
-              ),
-              Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.search,
-                      color: Colors.grey,
-                      size: 35,
+                    // const SizedBox(height: 10), // 검색창과 아이콘 사이 간격
+                    // 날짜 검색 아이콘
+                    // Row(
+                    //   mainAxisAlignment: MainAxisAlignment.center,
+                    //   children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.calendar_month_outlined,
+                        color: Colors.grey,
+                        size: 30,
+                      ),
+                      onPressed: () {
+                        _openDateRangeDialog(context); // 날짜 범위 검색 창 열기
+                      },
                     ),
-                    onPressed: () {
-                      // 검색 기능 (날짜 및 상호명 검색)
-                    },
-                  ),
-                  // const Text('검색', style: TextStyle(color: Colors.grey)),
-                ],
+                  ],
+                ),
+                //   ],
+                // ),
               ),
-            ],
-          ),
+            Expanded(
+              child: ListView.builder(
+                controller: _scrollController,
+                itemCount: filteredList.length,
+                itemBuilder: (context, index) {
+                  final reversedIndex = filteredList.length - 1 - index;
+                  final receipt = filteredList[reversedIndex];
+                  final receiptString =
+                      receiptStringList[reversedIndex].getter();
+                  return ReceiptWidget(
+                    index: reversedIndex,
+                    receipt: receipt,
+                    onDeleted: () => deleteReceipt(reversedIndex),
+                    receiptString: receiptString,
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
-      floatingActionButton: Align(
-        alignment: Alignment(0.0, 0.95), // FAB 위치
-        child: ClipOval(
-          // 원형 모양 유지
-          child: SizedBox(
-            width: 70, // 원하는 너비
-            height: 70, // 원하는 높이
-            child: FloatingActionButton(
-              onPressed: () async {
-                // QR 스캔 페이지로 이동하고 스캔 결과를 받아오기
-                final receiptData = await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => QRScanPage()),
-                );
-
-                // 결과가 null이 아닐 경우 receiptList에 추가
-                if (receiptData != null) {
-                  setState(() {
-                    receiptList.add(receiptData);
-                  });
-                }
-              },
-              backgroundColor: const Color.fromRGBO(0, 132, 96, 1),
-              child: const Icon(
-                Icons.center_focus_weak_sharp,
-                size: 48, // 아이콘 크기
-                color: Color.fromRGBO(255, 255, 255, 1),
-              ),
+      bottomNavigationBar: BottomAppBar(
+        child: SizedBox(
+          height: 60.0,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                        icon: const Icon(
+                          Icons.list_alt_rounded,
+                          color: Color.fromRGBO(0, 132, 96, 1),
+                          size: 35,
+                        ),
+                        onPressed: () {
+                          _scrollToTop();
+                          _loadSavedData();
+                        }),
+                  ],
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.search,
+                        color: Colors.grey,
+                        size: 35,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          // search 아이콘 클릭 시 검색창 보이기/숨기기
+                          isSearchVisible = !isSearchVisible;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
       ),
+      floatingActionButton: LayoutBuilder(builder: (context, constraints) {
+        return Padding(
+          padding: const EdgeInsets.only(top: 40.0),
+          child: ClipOval(
+            child: SizedBox(
+              width: 85,
+              height: 85,
+              child: FloatingActionButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => QRScanPage(
+                        onReceiptAdded: _loadSavedData,
+                      ),
+                    ),
+                  );
+                },
+                backgroundColor: const Color.fromRGBO(0, 132, 96, 1),
+                child: const Icon(
+                  Icons.center_focus_weak_sharp,
+                  size: 62,
+                  color: Color.fromRGBO(255, 255, 255, 1),
+                ),
+              ),
+            ),
+          ),
+        );
+      }),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }
